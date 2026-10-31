@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
     QFrame, QSystemTrayIcon, QMenu, QDialog, QDialogButtonBox,
     QMessageBox
 )
-from PySide6.QtCore import Qt, QTimer, QSize, Signal
-from PySide6.QtGui import QIcon, QAction, QCloseEvent
+from PySide6.QtCore import Qt, QTimer, QSize, Signal, QRectF
+from PySide6.QtGui import QIcon, QAction, QCloseEvent, QPainter, QPen, QColor
 
 from ui.styles import get_theme_stylesheet
 from services.mouse_controller import MouseController
@@ -133,6 +133,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.settings_manager = settings_manager
         self.drag_position = None
+        self.is_dragging = False
+        self.click_position = None
         
         # Initialize services
         self.mouse_controller = MouseController()
@@ -161,10 +163,13 @@ class MainWindow(QMainWindow):
         self.apply_theme()
         self.load_settings()
         
+        # Center window on screen
+        self.center_on_screen()
+        
         # Setup timers
         self.ui_update_timer = QTimer()
         self.ui_update_timer.timeout.connect(self.update_ui_state)
-        self.ui_update_timer.start(1000)  # Update every second
+        self.ui_update_timer.start(50)  # Update every 50ms for smooth animation (20 FPS)
         
         # Connect signals
         self.scheduler.action_triggered.connect(self.execute_scheduled_movement)
@@ -175,7 +180,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         
         # Fixed window size for circular design
-        self.setFixedSize(250, 250)
+        self.setFixedSize(190, 190)
         
         main_layout = QVBoxLayout()
         main_layout.setSpacing(0)
@@ -201,12 +206,19 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(main_layout)
     
     def create_clickable_circle(self, parent_layout):
-        """Create single large clickable circle"""
+        """Create single large clickable circle with progress indicator"""
+        # Container widget for circle + progress overlay
+        container = QWidget()
+        container.setFixedSize(180, 180)
+        container_layout = QVBoxLayout()
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+        
         # Main clickable button as circle
         self.circle_button = QPushButton()
         self.circle_button.setObjectName("mainCircle")
-        self.circle_button.setFixedSize(240, 240)
-        self.circle_button.clicked.connect(self.toggle_start_stop)
+        self.circle_button.setFixedSize(180, 180)
+        # Don't connect clicked signal - we handle it in mouseReleaseEvent
         self.circle_button.setCursor(Qt.PointingHandCursor)
         
         # Make sure the button is clickable
@@ -216,34 +228,42 @@ class MainWindow(QMainWindow):
         # Layout inside button
         button_layout = QVBoxLayout()
         button_layout.setAlignment(Qt.AlignCenter)
-        button_layout.setSpacing(5)
+        button_layout.setSpacing(0)
         
-        # Mouse icon
-        self.mouse_icon_label = QLabel("🖱️")
+        # Use actual icon file - ONLY the icon, nothing else
+        self.mouse_icon_label = QLabel()
         self.mouse_icon_label.setAlignment(Qt.AlignCenter)
-        self.mouse_icon_label.setStyleSheet("font-size: 70pt; background: transparent; color: #0078D4;")
+        
+        # Load the icon file
+        icon_path = get_resource_path(os.path.join("assets", "icon.ico"))
+        if os.path.exists(icon_path):
+            pixmap = QIcon(icon_path).pixmap(90, 90)  # 90x90 pixel icon (smaller)
+            self.mouse_icon_label.setPixmap(pixmap)
+        else:
+            # Fallback to emoji if icon not found
+            self.mouse_icon_label.setText("🖱️")
+            self.mouse_icon_label.setStyleSheet("font-size: 90pt; background: transparent; color: #0078D4;")
+        
+        self.mouse_icon_label.setStyleSheet("background: transparent;")
         button_layout.addWidget(self.mouse_icon_label)
         
-        # Status text
-        self.status_label = QLabel("Click to Start")
-        self.status_label.setObjectName("circleStatus")
-        self.status_label.setAlignment(Qt.AlignCenter)
-        button_layout.addWidget(self.status_label)
-        
-        # Timer display
-        self.timer_label = QLabel("10s")
-        self.timer_label.setObjectName("timerDisplay")
-        self.timer_label.setAlignment(Qt.AlignCenter)
-        button_layout.addWidget(self.timer_label)
-        
-        # Session duration
-        self.session_label = QLabel("00:00:00")
-        self.session_label.setObjectName("sessionDisplay")
-        self.session_label.setAlignment(Qt.AlignCenter)
-        button_layout.addWidget(self.session_label)
-        
         self.circle_button.setLayout(button_layout)
-        parent_layout.addWidget(self.circle_button, 0, Qt.AlignCenter)
+        
+        # Progress overlay widget (drawn on top)
+        self.progress_widget = ProgressCircle()
+        self.progress_widget.setFixedSize(180, 180)
+        self.progress_widget.setAttribute(Qt.WA_TransparentForMouseEvents)  # Let clicks pass through
+        
+        # Stack them
+        container_layout.addWidget(self.circle_button)
+        container.setLayout(container_layout)
+        
+        # Add progress overlay on top
+        self.progress_widget.setParent(container)
+        self.progress_widget.move(0, 0)
+        self.progress_widget.raise_()  # Bring to front
+        
+        parent_layout.addWidget(container, 0, Qt.AlignCenter)
     
     def toggle_start_stop(self):
         """Toggle between start and stop on circle click"""
@@ -253,6 +273,14 @@ class MainWindow(QMainWindow):
             self.stop_movement()
         elif self.status == "paused":
             self.start_movement()
+    
+    def center_on_screen(self):
+        """Center the window on the primary screen"""
+        from PySide6.QtGui import QScreen
+        screen = QScreen.availableGeometry(self.screen())
+        x = (screen.width() - self.width()) // 2
+        y = (screen.height() - self.height()) // 2
+        self.move(x, y)
     
 
     
@@ -402,46 +430,41 @@ class MainWindow(QMainWindow):
     
     def update_buttons(self):
         """Update circle appearance based on current status"""
-        if self.status == "stopped":
-            self.status_label.setText("Click to Start")
-            self.circle_button.setProperty("status", "stopped")
-        elif self.status == "running":
-            self.status_label.setText("Running - Click to Stop")
-            self.circle_button.setProperty("status", "running")
-        elif self.status == "paused":
-            self.status_label.setText("Paused - Click to Resume")
-            self.circle_button.setProperty("status", "paused")
-        
+        # Just update the circle property, no text changes
+        self.circle_button.setProperty("status", self.status)
         # Force style refresh
         self.circle_button.setStyle(self.circle_button.style())
     
     def update_ui_state(self):
-        """Update UI labels and status"""
-        # Update session duration
-        if self.start_time:
-            duration = datetime.now() - self.start_time
-            hours = int(duration.total_seconds() // 3600)
-            minutes = int((duration.total_seconds() % 3600) // 60)
-            seconds = int(duration.total_seconds() % 60)
-            self.session_label.setText(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
-        else:
-            self.session_label.setText("00:00:00")
-        
-        # Update timer countdown
+        """Update UI - change color based on time remaining and update progress"""
         if self.status == "running":
             next_time = self.scheduler.get_next_action_time()
             if next_time:
-                remaining = (next_time - datetime.now()).total_seconds()
-                if remaining > 0:
-                    self.timer_label.setText(f"{int(remaining)}s")
-                else:
-                    self.timer_label.setText("Now!")
-            else:
                 interval = self.get_selected_interval()
-                self.timer_label.setText(f"{interval}s")
+                remaining = (next_time - datetime.now()).total_seconds()
+                
+                # Calculate progress (0 to 1, where 1 is complete)
+                progress = 1.0 - (remaining / interval)
+                progress = max(0.0, min(1.0, progress))  # Clamp to 0-1
+                
+                self.progress_widget.set_progress(progress)
+                self.progress_widget.update()
+                
+                # Last 3 seconds: RED warning
+                if remaining <= 3 and remaining > 0:
+                    self.circle_button.setProperty("status", "warning")
+                    self.progress_widget.set_color("red")
+                else:
+                    self.circle_button.setProperty("status", "running")
+                    self.progress_widget.set_color("green")
+                
+                # Force style refresh
+                self.circle_button.setStyle(self.circle_button.style())
         else:
-            interval = self.get_selected_interval()
-            self.timer_label.setText(f"{interval}s")
+            # Reset progress when stopped
+            self.progress_widget.set_progress(0)
+            self.progress_widget.set_color("blue")
+            self.progress_widget.update()
     
     def update_tray_tooltip(self):
         """Update system tray tooltip"""
@@ -480,15 +503,35 @@ class MainWindow(QMainWindow):
             self.exit_application()
     
     def mousePressEvent(self, event):
-        """Handle mouse press for dragging"""
+        """Handle mouse press - record position for click vs drag detection"""
         if event.button() == Qt.LeftButton:
+            self.click_position = event.globalPosition().toPoint()
             self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self.is_dragging = False
             event.accept()
     
     def mouseMoveEvent(self, event):
         """Handle mouse move for dragging"""
         if event.buttons() == Qt.LeftButton and self.drag_position is not None:
-            self.move(event.globalPosition().toPoint() - self.drag_position)
+            # Check if moved enough to be considered a drag (threshold: 5 pixels)
+            if self.click_position:
+                distance = (event.globalPosition().toPoint() - self.click_position)
+                if abs(distance.x()) > 5 or abs(distance.y()) > 5:
+                    self.is_dragging = True
+            
+            if self.is_dragging:
+                self.move(event.globalPosition().toPoint() - self.drag_position)
+            event.accept()
+    
+    def mouseReleaseEvent(self, event):
+        """Handle mouse release - if not dragging, it's a click"""
+        if event.button() == Qt.LeftButton:
+            # Only trigger click if we weren't dragging
+            if not self.is_dragging:
+                self.toggle_start_stop()
+            
+            self.click_position = None
+            self.is_dragging = False
             event.accept()
     
     def exit_application(self):
@@ -506,3 +549,52 @@ class MainWindow(QMainWindow):
         # Quit application
         from PySide6.QtWidgets import QApplication
         QApplication.quit()
+
+
+class ProgressCircle(QWidget):
+    """Custom widget to draw circular progress indicator"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.progress = 0.0  # 0.0 to 1.0
+        self.color = QColor(33, 150, 243)  # Blue by default
+        self.setAttribute(Qt.WA_TranslucentBackground)
+    
+    def set_progress(self, progress):
+        """Set progress from 0.0 to 1.0"""
+        self.progress = max(0.0, min(1.0, progress))
+    
+    def set_color(self, color_name):
+        """Set the progress arc color"""
+        if color_name == "blue":
+            self.color = QColor(33, 150, 243)  # Blue
+        elif color_name == "green":
+            self.color = QColor(76, 175, 80)  # Green
+        elif color_name == "red":
+            self.color = QColor(244, 67, 54)  # Red
+    
+    def paintEvent(self, event):
+        """Draw the circular progress arc"""
+        if self.progress <= 0:
+            return
+        
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Set up pen for the arc
+        pen = QPen(self.color)
+        pen.setWidth(6)
+        pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(pen)
+        
+        # Calculate rectangle for arc (inset from edges)
+        margin = 8
+        rect = QRectF(margin, margin, self.width() - 2*margin, self.height() - 2*margin)
+        
+        # Draw arc clockwise from top (starts at 90 degrees, goes clockwise)
+        # Qt angles: 0° is 3 o'clock, 90° is 12 o'clock
+        # Positive span = counter-clockwise, Negative span = clockwise
+        start_angle = 90 * 16  # Start at top (12 o'clock)
+        span_angle = -int(self.progress * 360 * 16)  # Negative for clockwise
+        
+        painter.drawArc(rect, start_angle, span_angle)

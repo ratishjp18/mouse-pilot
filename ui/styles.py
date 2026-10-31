@@ -190,33 +190,33 @@ QGroupBox::title {
 
 /* Single Circle Design */
 QPushButton#mainCircle {
-    background-color: rgba(255, 255, 255, 230);
-    border: 6px solid #0078D4;
-    border-radius: 120px;
+    background-color: transparent;
+    border: 5px solid #0078D4;
+    border-radius: 90px;
 }
 
 QPushButton#mainCircle:hover {
-    background-color: rgba(240, 248, 255, 250);
-    border: 8px solid #106EBE;
+    background-color: transparent;
+    border: 6px solid #106EBE;
 }
 
 QPushButton#mainCircle:pressed {
-    background-color: rgba(220, 235, 250, 255);
+    background-color: transparent;
 }
 
 QPushButton#mainCircle[status="running"] {
-    background-color: rgba(232, 245, 233, 230);
-    border: 6px solid #4CAF50;
+    background-color: transparent;
+    border: 5px solid #4CAF50;
 }
 
 QPushButton#mainCircle[status="running"]:hover {
-    background-color: rgba(200, 230, 201, 250);
-    border: 8px solid #45A049;
+    background-color: transparent;
+    border: 6px solid #45A049;
 }
 
 QPushButton#mainCircle[status="paused"] {
-    background-color: rgba(255, 244, 206, 230);
-    border: 6px solid #FFB900;
+    background-color: transparent;
+    border: 5px solid #FFB900;
 }
 
 #circleStatus {
@@ -538,33 +538,33 @@ QGroupBox::title {
 
 /* Single Circle Design - Dark */
 QPushButton#mainCircle {
-    background-color: rgba(45, 45, 45, 200);
-    border: 6px solid #60CDFF;
-    border-radius: 120px;
+    background-color: transparent;
+    border: 5px solid #60CDFF;
+    border-radius: 90px;
 }
 
 QPushButton#mainCircle:hover {
-    background-color: rgba(63, 63, 63, 220);
-    border: 8px solid #1A86D9;
+    background-color: transparent;
+    border: 6px solid #1A86D9;
 }
 
 QPushButton#mainCircle:pressed {
-    background-color: rgba(80, 80, 80, 240);
+    background-color: transparent;
 }
 
 QPushButton#mainCircle[status="running"] {
-    background-color: rgba(45, 74, 43, 200);
-    border: 6px solid #6CCB5F;
+    background-color: transparent;
+    border: 5px solid #6CCB5F;
 }
 
 QPushButton#mainCircle[status="running"]:hover {
-    background-color: rgba(58, 90, 56, 220);
-    border: 8px solid #5FBF52;
+    background-color: transparent;
+    border: 6px solid #5FBF52;
 }
 
 QPushButton#mainCircle[status="paused"] {
-    background-color: rgba(68, 61, 28, 200);
-    border: 6px solid #FFB900;
+    background-color: transparent;
+    border: 5px solid #FFB900;
 }
 
 #mouseIcon {
