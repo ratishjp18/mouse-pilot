@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
     QFrame, QSystemTrayIcon, QMenu, QDialog, QDialogButtonBox,
     QMessageBox
 )
-from PySide6.QtCore import Qt, QTimer, QSize, Signal, QRectF
-from PySide6.QtGui import QIcon, QAction, QCloseEvent, QPainter, QPen, QColor
+from PySide6.QtCore import Qt, QTimer, QSize, Signal, QRectF, QPoint
+from PySide6.QtGui import QIcon, QAction, QCloseEvent, QPainter, QPen, QColor, QCursor
 
 from ui.styles import get_theme_stylesheet
 from services.mouse_controller import MouseController
@@ -133,8 +133,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.settings_manager = settings_manager
         self.drag_position = None
+        self.drag_offset = None
         self.is_dragging = False
         self.click_position = None
+        self.drag_start_pos = None
         
         # Initialize services
         self.mouse_controller = MouseController()
@@ -154,6 +156,9 @@ class MainWindow(QMainWindow):
         # Make window background transparent
         self.setAttribute(Qt.WA_TranslucentBackground)
         
+        # Enable mouse tracking for cursor changes
+        self.setMouseTracking(True)
+        
         icon_path = get_resource_path(os.path.join("assets", "icon.ico"))
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
@@ -163,8 +168,8 @@ class MainWindow(QMainWindow):
         self.apply_theme()
         self.load_settings()
         
-        # Center window on screen
-        self.center_on_screen()
+        # Load and restore last position, or center if first launch
+        self.restore_position()
         
         # Setup timers
         self.ui_update_timer = QTimer()
@@ -177,14 +182,15 @@ class MainWindow(QMainWindow):
     def setup_ui(self):
         """Setup the main UI layout - single clickable circle only"""
         central_widget = QWidget()
+        central_widget.setAttribute(Qt.WA_TransparentForMouseEvents)  # Let window handle mouse events
         self.setCentralWidget(central_widget)
         
-        # Fixed window size for circular design
-        self.setFixedSize(190, 190)
+        # Fixed window size for circular design (larger for drag area)
+        self.setFixedSize(220, 220)
         
         main_layout = QVBoxLayout()
         main_layout.setSpacing(0)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(20, 20, 20, 20)  # 20px margin = drag area
         
         # Create the single clickable circle
         self.create_clickable_circle(main_layout)
@@ -210,6 +216,7 @@ class MainWindow(QMainWindow):
         # Container widget for circle + progress overlay
         container = QWidget()
         container.setFixedSize(180, 180)
+        container.setAttribute(Qt.WA_TransparentForMouseEvents)  # Let window handle mouse events
         container_layout = QVBoxLayout()
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(0)
@@ -218,12 +225,15 @@ class MainWindow(QMainWindow):
         self.circle_button = QPushButton()
         self.circle_button.setObjectName("mainCircle")
         self.circle_button.setFixedSize(180, 180)
-        # Don't connect clicked signal - we handle it in mouseReleaseEvent
+        # Don't connect clicked - we handle it in mousePressEvent
         self.circle_button.setCursor(Qt.PointingHandCursor)
+        
+        # Disable button's mouse event handling to let window handle it
+        self.circle_button.setAttribute(Qt.WA_TransparentForMouseEvents)
         
         # Make sure the button is clickable
         self.circle_button.setFocusPolicy(Qt.StrongFocus)
-        self.circle_button.setMouseTracking(True)
+        self.circle_button.setMouseTracking(False)
         
         # Layout inside button
         button_layout = QVBoxLayout()
@@ -233,6 +243,7 @@ class MainWindow(QMainWindow):
         # Use actual icon file - ONLY the icon, nothing else
         self.mouse_icon_label = QLabel()
         self.mouse_icon_label.setAlignment(Qt.AlignCenter)
+        self.mouse_icon_label.setAttribute(Qt.WA_TransparentForMouseEvents)  # Let window handle mouse events
         
         # Load the icon file
         icon_path = get_resource_path(os.path.join("assets", "icon.ico"))
@@ -263,6 +274,9 @@ class MainWindow(QMainWindow):
         self.progress_widget.move(0, 0)
         self.progress_widget.raise_()  # Bring to front
         
+        # Store container for position checks
+        self.circle_container = container
+        
         parent_layout.addWidget(container, 0, Qt.AlignCenter)
     
     def toggle_start_stop(self):
@@ -281,6 +295,40 @@ class MainWindow(QMainWindow):
         x = (screen.width() - self.width()) // 2
         y = (screen.height() - self.height()) // 2
         self.move(x, y)
+    
+    def restore_position(self):
+        """Restore widget position from settings or center on first launch"""
+        settings = self.settings_manager.get_all_settings()
+        saved_x = settings.get("window_x", None)
+        saved_y = settings.get("window_y", None)
+        
+        if saved_x is not None and saved_y is not None:
+            # Validate that the position is on a visible screen
+            from PySide6.QtGui import QGuiApplication
+            target_pos = QPoint(int(saved_x), int(saved_y))
+            
+            # Check if position is visible on any screen
+            is_visible = False
+            for screen in QGuiApplication.screens():
+                if screen.geometry().contains(target_pos):
+                    is_visible = True
+                    break
+            
+            if is_visible:
+                self.move(int(saved_x), int(saved_y))
+            else:
+                # Saved position is invalid (monitor disconnected), center it
+                self.center_on_screen()
+        else:
+            # First launch, center the widget
+            self.center_on_screen()
+    
+    def save_position(self):
+        """Save current widget position to settings"""
+        pos = self.pos()
+        self.settings_manager.set("window_x", pos.x())
+        self.settings_manager.set("window_y", pos.y())
+        self.settings_manager.save()
     
 
     
@@ -502,36 +550,72 @@ class MainWindow(QMainWindow):
         else:
             self.exit_application()
     
+    def is_on_center_button(self, pos):
+        """Check if position is on the center button circle"""
+        # Get window center
+        center_x = self.width() / 2
+        center_y = self.height() / 2
+        
+        dx = pos.x() - center_x
+        dy = pos.y() - center_y
+        distance = (dx * dx + dy * dy) ** 0.5
+        
+        return distance <= 50  # Smaller radius = larger draggable area (was 90)
+    
     def mousePressEvent(self, event):
-        """Handle mouse press - record position for click vs drag detection"""
+        """Handle mouse press - drag from anywhere except center button"""
         if event.button() == Qt.LeftButton:
-            self.click_position = event.globalPosition().toPoint()
-            self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            self.is_dragging = False
+            local_pos = event.position().toPoint()
+            
+            # Store the offset from click position to window top-left
+            self.drag_offset = event.globalPosition().toPoint() - self.pos()
+            
+            # Check if clicking on center button
+            if self.is_on_center_button(local_pos):
+                # On button - toggle start/stop
+                self.toggle_start_stop()
+                self.is_dragging = False
+            else:
+                # Not on button - start dragging
+                self.is_dragging = True
+                self.setCursor(QCursor(Qt.ClosedHandCursor))
+            
             event.accept()
     
     def mouseMoveEvent(self, event):
-        """Handle mouse move for dragging"""
-        if event.buttons() == Qt.LeftButton and self.drag_position is not None:
-            # Check if moved enough to be considered a drag (threshold: 5 pixels)
-            if self.click_position:
-                distance = (event.globalPosition().toPoint() - self.click_position)
-                if abs(distance.x()) > 5 or abs(distance.y()) > 5:
-                    self.is_dragging = True
-            
-            if self.is_dragging:
-                self.move(event.globalPosition().toPoint() - self.drag_position)
-            event.accept()
+        """Handle mouse move for dragging and cursor changes"""
+        local_pos = event.position().toPoint()
+        
+        if self.is_dragging and hasattr(self, 'drag_offset') and self.drag_offset is not None:
+            # Dragging - move the widget
+            new_pos = event.globalPosition().toPoint() - self.drag_offset
+            self.move(int(new_pos.x()), int(new_pos.y()))
+        else:
+            # Not dragging - update cursor based on position
+            if not self.is_on_center_button(local_pos):
+                self.setCursor(QCursor(Qt.OpenHandCursor))
+            else:
+                self.setCursor(QCursor(Qt.PointingHandCursor))
+        
+        event.accept()
     
     def mouseReleaseEvent(self, event):
-        """Handle mouse release - if not dragging, it's a click"""
+        """Handle mouse release - save position after drag"""
         if event.button() == Qt.LeftButton:
-            # Only trigger click if we weren't dragging
-            if not self.is_dragging:
-                self.toggle_start_stop()
+            if self.is_dragging:
+                # Finished dragging - save new position
+                self.save_position()
             
-            self.click_position = None
             self.is_dragging = False
+            self.drag_offset = None
+            
+            # Reset cursor
+            local_pos = event.position().toPoint()
+            if not self.is_on_center_button(local_pos):
+                self.setCursor(QCursor(Qt.OpenHandCursor))
+            else:
+                self.setCursor(QCursor(Qt.PointingHandCursor))
+            
             event.accept()
     
     def exit_application(self):
