@@ -185,6 +185,113 @@ QGroupBox::title {
     padding: 0 8px;
     color: #0078D4;
 }
+
+/* Circular Design Elements */
+#circleContainer {
+    background-color: transparent;
+    border: 8px solid #0078D4;
+    border-radius: 200px;
+}
+
+#mouseIcon {
+    background: transparent;
+}
+
+#circleStatus {
+    font-size: 18pt;
+    font-weight: 600;
+    color: #1F1F1F;
+    background: transparent;
+}
+
+#timerDisplay {
+    font-size: 36pt;
+    font-weight: 700;
+    color: #0078D4;
+    background: transparent;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+#sessionDisplay {
+    font-size: 14pt;
+    color: #605E5C;
+    background: transparent;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+QPushButton#circleButton {
+    background-color: #E8E8E8;
+    color: #1F1F1F;
+    border-radius: 20px;
+    font-size: 16pt;
+    font-weight: 600;
+    border: 2px solid #CCCCCC;
+}
+
+QPushButton#circleButton:hover {
+    background-color: #D0D0D0;
+    border: 2px solid #0078D4;
+}
+
+QPushButton#sideCircleButton {
+    background-color: white;
+    color: #0078D4;
+    border-radius: 45px;
+    font-size: 16pt;
+    font-weight: 600;
+    border: 3px solid #0078D4;
+}
+
+QPushButton#sideCircleButton:hover {
+    background-color: #F0F8FF;
+    border: 3px solid #106EBE;
+}
+
+QPushButton#sideCircleButton:pressed {
+    background-color: #E0E0E0;
+}
+
+QPushButton#circleControlButton {
+    background-color: #0078D4;
+    color: white;
+    border-radius: 35px;
+    font-size: 24pt;
+    border: none;
+}
+
+QPushButton#circleControlButton:hover {
+    background-color: #106EBE;
+}
+
+QPushButton#circleControlButton:pressed {
+    background-color: #005A9E;
+}
+
+QPushButton#circleControlButton:disabled {
+    background-color: #E0E0E0;
+    color: #A0A0A0;
+}
+
+QPushButton#circleControlButtonStop {
+    background-color: #D13438;
+    color: white;
+    border-radius: 35px;
+    font-size: 24pt;
+    border: none;
+}
+
+QPushButton#circleControlButtonStop:hover {
+    background-color: #B22222;
+}
+
+QPushButton#circleControlButtonStop:pressed {
+    background-color: #8B0000;
+}
+
+QPushButton#circleControlButtonStop:disabled {
+    background-color: #E0E0E0;
+    color: #A0A0A0;
+}
 """
 
 DARK_THEME = """
@@ -377,6 +484,113 @@ QGroupBox::title {
     subcontrol-position: top left;
     padding: 0 8px;
     color: #60CDFF;
+}
+
+/* Circular Design Elements - Dark */
+#circleContainer {
+    background-color: transparent;
+    border: 8px solid #60CDFF;
+    border-radius: 200px;
+}
+
+#mouseIcon {
+    background: transparent;
+}
+
+#circleStatus {
+    font-size: 18pt;
+    font-weight: 600;
+    color: #FFFFFF;
+    background: transparent;
+}
+
+#timerDisplay {
+    font-size: 36pt;
+    font-weight: 700;
+    color: #60CDFF;
+    background: transparent;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+#sessionDisplay {
+    font-size: 14pt;
+    color: #C8C6C4;
+    background: transparent;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+QPushButton#circleButton {
+    background-color: #3F3F3F;
+    color: #FFFFFF;
+    border-radius: 20px;
+    font-size: 16pt;
+    font-weight: 600;
+    border: 2px solid #5A5A5A;
+}
+
+QPushButton#circleButton:hover {
+    background-color: #505050;
+    border: 2px solid #60CDFF;
+}
+
+QPushButton#sideCircleButton {
+    background-color: #2D2D2D;
+    color: #60CDFF;
+    border-radius: 45px;
+    font-size: 16pt;
+    font-weight: 600;
+    border: 3px solid #60CDFF;
+}
+
+QPushButton#sideCircleButton:hover {
+    background-color: #3F3F3F;
+    border: 3px solid #1A86D9;
+}
+
+QPushButton#sideCircleButton:pressed {
+    background-color: #505050;
+}
+
+QPushButton#circleControlButton {
+    background-color: #0078D4;
+    color: white;
+    border-radius: 35px;
+    font-size: 24pt;
+    border: none;
+}
+
+QPushButton#circleControlButton:hover {
+    background-color: #1A86D9;
+}
+
+QPushButton#circleControlButton:pressed {
+    background-color: #005A9E;
+}
+
+QPushButton#circleControlButton:disabled {
+    background-color: #3F3F3F;
+    color: #797775;
+}
+
+QPushButton#circleControlButtonStop {
+    background-color: #E81123;
+    color: white;
+    border-radius: 35px;
+    font-size: 24pt;
+    border: none;
+}
+
+QPushButton#circleControlButtonStop:hover {
+    background-color: #F1707A;
+}
+
+QPushButton#circleControlButtonStop:pressed {
+    background-color: #C50F1F;
+}
+
+QPushButton#circleControlButtonStop:disabled {
+    background-color: #3F3F3F;
+    color: #797775;
 }
 """
 
