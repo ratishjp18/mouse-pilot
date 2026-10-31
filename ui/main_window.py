@@ -132,6 +132,7 @@ class MainWindow(QMainWindow):
     def __init__(self, settings_manager):
         super().__init__()
         self.settings_manager = settings_manager
+        self.drag_position = None
         
         # Initialize services
         self.mouse_controller = MouseController()
@@ -142,9 +143,15 @@ class MainWindow(QMainWindow):
         self.status = "stopped"  # stopped, running, paused
         self.start_time = None
         
-        # Setup UI
+        # Setup UI - Frameless and transparent
         self.setWindowTitle("Mouse Pilot")
-        self.setMinimumSize(600, 700)
+        
+        # Make window frameless but SHOW in taskbar
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        
+        # Make window background transparent
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
         icon_path = get_resource_path(os.path.join("assets", "icon.ico"))
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
@@ -163,174 +170,95 @@ class MainWindow(QMainWindow):
         self.scheduler.action_triggered.connect(self.execute_scheduled_movement)
     
     def setup_ui(self):
-        """Setup the main UI layout"""
+        """Setup the main UI layout - single clickable circle only"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
+        # Fixed window size for circular design
+        self.setFixedSize(250, 250)
+        
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(20)
-        main_layout.setContentsMargins(30, 30, 30, 30)
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Header
-        header_layout = QHBoxLayout()
-        title = QLabel("🖱️ Mouse Pilot")
-        title.setObjectName("title")
-        header_layout.addWidget(title)
-        header_layout.addStretch()
+        # Create the single clickable circle
+        self.create_clickable_circle(main_layout)
         
-        settings_btn = QPushButton("⚙️ Settings")
-        settings_btn.setObjectName("secondaryButton")
-        settings_btn.clicked.connect(self.show_settings)
-        header_layout.addWidget(settings_btn)
+        # Hidden controls for internal state
+        self.interval_combo = QComboBox()
+        self.interval_combo.addItems(["15 seconds", "30 seconds", "60 seconds", "2 minutes", "5 minutes"])
+        self.interval_combo.setCurrentText("15 seconds")
+        self.interval_combo.setVisible(False)
         
-        main_layout.addLayout(header_layout)
+        self.custom_interval_spin = QSpinBox()
+        self.custom_interval_spin.setRange(5, 3600)
+        self.custom_interval_spin.setValue(10)
+        self.custom_interval_spin.setVisible(False)
         
-        # Status Card
-        status_card = self.create_status_card()
-        main_layout.addWidget(status_card)
-        
-        # Controls Card
-        controls_card = self.create_controls_card()
-        main_layout.addWidget(controls_card)
-        
-        # Schedule Card
-        schedule_card = self.create_schedule_card()
-        main_layout.addWidget(schedule_card)
-        
-        # Keep Awake Card
-        keep_awake_card = self.create_keep_awake_card()
-        main_layout.addWidget(keep_awake_card)
-        
-        main_layout.addStretch()
+        self.keep_awake_checkbox = QCheckBox()
+        self.keep_awake_checkbox.setVisible(False)
         
         central_widget.setLayout(main_layout)
     
-    def create_status_card(self):
-        """Create status display card"""
-        card = QFrame()
-        card.setObjectName("card")
-        layout = QVBoxLayout()
+    def create_clickable_circle(self, parent_layout):
+        """Create single large clickable circle"""
+        # Main clickable button as circle
+        self.circle_button = QPushButton()
+        self.circle_button.setObjectName("mainCircle")
+        self.circle_button.setFixedSize(240, 240)
+        self.circle_button.clicked.connect(self.toggle_start_stop)
+        self.circle_button.setCursor(Qt.PointingHandCursor)
         
-        # Status indicator
-        status_layout = QHBoxLayout()
-        status_layout.addWidget(QLabel("Status:"))
-        self.status_label = QLabel("Stopped")
-        self.status_label.setObjectName("status")
-        self.status_label.setProperty("status", "stopped")
-        status_layout.addWidget(self.status_label)
-        status_layout.addStretch()
-        layout.addLayout(status_layout)
+        # Make sure the button is clickable
+        self.circle_button.setFocusPolicy(Qt.StrongFocus)
+        self.circle_button.setMouseTracking(True)
+        
+        # Layout inside button
+        button_layout = QVBoxLayout()
+        button_layout.setAlignment(Qt.AlignCenter)
+        button_layout.setSpacing(5)
+        
+        # Mouse icon
+        self.mouse_icon_label = QLabel("🖱️")
+        self.mouse_icon_label.setAlignment(Qt.AlignCenter)
+        self.mouse_icon_label.setStyleSheet("font-size: 70pt; background: transparent; color: #0078D4;")
+        button_layout.addWidget(self.mouse_icon_label)
+        
+        # Status text
+        self.status_label = QLabel("Click to Start")
+        self.status_label.setObjectName("circleStatus")
+        self.status_label.setAlignment(Qt.AlignCenter)
+        button_layout.addWidget(self.status_label)
+        
+        # Timer display
+        self.timer_label = QLabel("10s")
+        self.timer_label.setObjectName("timerDisplay")
+        self.timer_label.setAlignment(Qt.AlignCenter)
+        button_layout.addWidget(self.timer_label)
         
         # Session duration
-        self.session_label = QLabel("Session: Not started")
-        self.session_label.setObjectName("subtitle")
-        layout.addWidget(self.session_label)
+        self.session_label = QLabel("00:00:00")
+        self.session_label.setObjectName("sessionDisplay")
+        self.session_label.setAlignment(Qt.AlignCenter)
+        button_layout.addWidget(self.session_label)
         
-        # Next action
-        self.next_action_label = QLabel("Next action: None")
-        self.next_action_label.setObjectName("subtitle")
-        layout.addWidget(self.next_action_label)
-        
-        card.setLayout(layout)
-        return card
+        self.circle_button.setLayout(button_layout)
+        parent_layout.addWidget(self.circle_button, 0, Qt.AlignCenter)
     
-    def create_controls_card(self):
-        """Create control buttons card"""
-        card = QFrame()
-        card.setObjectName("card")
-        layout = QVBoxLayout()
-        
-        layout.addWidget(QLabel("Controls"))
-        
-        # Start/Stop buttons
-        button_layout = QHBoxLayout()
-        
-        self.start_button = QPushButton("▶️ Start")
-        self.start_button.clicked.connect(self.start_movement)
-        self.start_button.setMinimumHeight(50)
-        button_layout.addWidget(self.start_button)
-        
-        self.pause_button = QPushButton("⏸️ Pause")
-        self.pause_button.clicked.connect(self.pause_movement)
-        self.pause_button.setEnabled(False)
-        self.pause_button.setMinimumHeight(50)
-        button_layout.addWidget(self.pause_button)
-        
-        self.stop_button = QPushButton("⏹️ Stop")
-        self.stop_button.setObjectName("stopButton")
-        self.stop_button.clicked.connect(self.stop_movement)
-        self.stop_button.setEnabled(False)
-        self.stop_button.setMinimumHeight(50)
-        button_layout.addWidget(self.stop_button)
-        
-        layout.addLayout(button_layout)
-        
-        card.setLayout(layout)
-        return card
+    def toggle_start_stop(self):
+        """Toggle between start and stop on circle click"""
+        if self.status == "stopped":
+            self.start_movement()
+        elif self.status == "running":
+            self.stop_movement()
+        elif self.status == "paused":
+            self.start_movement()
     
-    def create_schedule_card(self):
-        """Create scheduling configuration card"""
-        card = QFrame()
-        card.setObjectName("card")
-        layout = QVBoxLayout()
-        
-        layout.addWidget(QLabel("Movement Interval"))
-        
-        # Interval selection
-        interval_layout = QHBoxLayout()
-        interval_layout.addWidget(QLabel("Interval:"))
-        
-        self.interval_combo = QComboBox()
-        self.interval_combo.addItems([
-            "15 seconds",
-            "30 seconds",
-            "60 seconds",
-            "2 minutes",
-            "5 minutes",
-            "Custom"
-        ])
-        self.interval_combo.currentTextChanged.connect(self.on_interval_changed)
-        interval_layout.addWidget(self.interval_combo)
-        
-        interval_layout.addStretch()
-        layout.addLayout(interval_layout)
-        
-        # Custom interval
-        custom_layout = QHBoxLayout()
-        custom_layout.addWidget(QLabel("Custom (seconds):"))
-        self.custom_interval_spin = QSpinBox()
-        self.custom_interval_spin.setRange(5, 3600)
-        self.custom_interval_spin.setValue(60)
-        self.custom_interval_spin.setEnabled(False)
-        custom_layout.addWidget(self.custom_interval_spin)
-        custom_layout.addStretch()
-        layout.addLayout(custom_layout)
-        
-        card.setLayout(layout)
-        return card
+
     
-    def create_keep_awake_card(self):
-        """Create keep-awake configuration card"""
-        card = QFrame()
-        card.setObjectName("card")
-        layout = QVBoxLayout()
-        
-        layout.addWidget(QLabel("System Keep-Awake"))
-        
-        info_label = QLabel(
-            "Prevent system sleep during legitimate work.\n"
-            "Respects organization policies."
-        )
-        info_label.setObjectName("subtitle")
-        info_label.setWordWrap(True)
-        layout.addWidget(info_label)
-        
-        self.keep_awake_checkbox = QCheckBox("Enable Keep-Awake Mode")
-        self.keep_awake_checkbox.stateChanged.connect(self.toggle_keep_awake)
-        layout.addWidget(self.keep_awake_checkbox)
-        
-        card.setLayout(layout)
-        return card
+
+    
+
     
     def setup_tray(self):
         """Setup system tray icon"""
@@ -413,19 +341,8 @@ class MainWindow(QMainWindow):
     
     def get_selected_interval(self):
         """Get the currently selected interval in seconds"""
-        text = self.interval_combo.currentText()
-        if text == "15 seconds":
-            return 15
-        elif text == "30 seconds":
-            return 30
-        elif text == "60 seconds":
-            return 60
-        elif text == "2 minutes":
-            return 120
-        elif text == "5 minutes":
-            return 300
-        else:  # Custom
-            return self.custom_interval_spin.value()
+        # Always use 10 seconds
+        return 10
     
     def on_interval_changed(self, text):
         """Handle interval selection change"""
@@ -484,50 +401,47 @@ class MainWindow(QMainWindow):
         self.save_settings()
     
     def update_buttons(self):
-        """Update button states based on current status"""
+        """Update circle appearance based on current status"""
         if self.status == "stopped":
-            self.start_button.setEnabled(True)
-            self.pause_button.setEnabled(False)
-            self.stop_button.setEnabled(False)
+            self.status_label.setText("Click to Start")
+            self.circle_button.setProperty("status", "stopped")
         elif self.status == "running":
-            self.start_button.setEnabled(False)
-            self.pause_button.setEnabled(True)
-            self.stop_button.setEnabled(True)
+            self.status_label.setText("Running - Click to Stop")
+            self.circle_button.setProperty("status", "running")
         elif self.status == "paused":
-            self.start_button.setEnabled(True)
-            self.pause_button.setEnabled(False)
-            self.stop_button.setEnabled(True)
+            self.status_label.setText("Paused - Click to Resume")
+            self.circle_button.setProperty("status", "paused")
+        
+        # Force style refresh
+        self.circle_button.setStyle(self.circle_button.style())
     
     def update_ui_state(self):
         """Update UI labels and status"""
-        # Update status label
-        self.status_label.setText(self.status.capitalize())
-        self.status_label.setProperty("status", self.status)
-        self.status_label.setStyle(self.status_label.style())
-        
         # Update session duration
         if self.start_time:
             duration = datetime.now() - self.start_time
             hours = int(duration.total_seconds() // 3600)
             minutes = int((duration.total_seconds() % 3600) // 60)
             seconds = int(duration.total_seconds() % 60)
-            self.session_label.setText(f"Session: {hours:02d}:{minutes:02d}:{seconds:02d}")
+            self.session_label.setText(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
         else:
-            self.session_label.setText("Session: Not started")
+            self.session_label.setText("00:00:00")
         
-        # Update next action
+        # Update timer countdown
         if self.status == "running":
             next_time = self.scheduler.get_next_action_time()
             if next_time:
                 remaining = (next_time - datetime.now()).total_seconds()
                 if remaining > 0:
-                    self.next_action_label.setText(f"Next action: {int(remaining)}s")
+                    self.timer_label.setText(f"{int(remaining)}s")
                 else:
-                    self.next_action_label.setText("Next action: Now")
+                    self.timer_label.setText("Now!")
             else:
-                self.next_action_label.setText("Next action: None")
+                interval = self.get_selected_interval()
+                self.timer_label.setText(f"{interval}s")
         else:
-            self.next_action_label.setText("Next action: None")
+            interval = self.get_selected_interval()
+            self.timer_label.setText(f"{interval}s")
     
     def update_tray_tooltip(self):
         """Update system tray tooltip"""
@@ -564,6 +478,18 @@ class MainWindow(QMainWindow):
             self.hide()
         else:
             self.exit_application()
+    
+    def mousePressEvent(self, event):
+        """Handle mouse press for dragging"""
+        if event.button() == Qt.LeftButton:
+            self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+    
+    def mouseMoveEvent(self, event):
+        """Handle mouse move for dragging"""
+        if event.buttons() == Qt.LeftButton and self.drag_position is not None:
+            self.move(event.globalPosition().toPoint() - self.drag_position)
+            event.accept()
     
     def exit_application(self):
         """Clean exit of the application"""
