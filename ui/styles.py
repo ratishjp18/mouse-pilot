@@ -5,16 +5,18 @@ Supports both light and dark themes with Windows 11 aesthetic
 
 LIGHT_THEME = """
 QMainWindow {
-    background-color: #F3F3F3;
+    background-color: transparent;
 }
 
 QWidget {
     font-family: 'Segoe UI', Arial, sans-serif;
     font-size: 10pt;
+    background-color: transparent;
 }
 
 QLabel {
     color: #1F1F1F;
+    background-color: transparent;
 }
 
 QLabel#title {
@@ -186,11 +188,57 @@ QGroupBox::title {
     color: #0078D4;
 }
 
-/* Circular Design Elements */
-#circleContainer {
-    background-color: transparent;
-    border: 8px solid #0078D4;
-    border-radius: 200px;
+/* Single Circle Design */
+QPushButton#mainCircle {
+    background-color: rgba(255, 255, 255, 230);
+    border: 6px solid #0078D4;
+    border-radius: 120px;
+}
+
+QPushButton#mainCircle:hover {
+    background-color: rgba(240, 248, 255, 250);
+    border: 8px solid #106EBE;
+}
+
+QPushButton#mainCircle:pressed {
+    background-color: rgba(220, 235, 250, 255);
+}
+
+QPushButton#mainCircle[status="running"] {
+    background-color: rgba(232, 245, 233, 230);
+    border: 6px solid #4CAF50;
+}
+
+QPushButton#mainCircle[status="running"]:hover {
+    background-color: rgba(200, 230, 201, 250);
+    border: 8px solid #45A049;
+}
+
+QPushButton#mainCircle[status="paused"] {
+    background-color: rgba(255, 244, 206, 230);
+    border: 6px solid #FFB900;
+}
+
+#circleStatus {
+    font-size: 10pt;
+    font-weight: 600;
+    color: #1F1F1F;
+    background: transparent;
+}
+
+#timerDisplay {
+    font-size: 24pt;
+    font-weight: 700;
+    color: #0078D4;
+    background: transparent;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+#sessionDisplay {
+    font-size: 9pt;
+    color: #605E5C;
+    background: transparent;
+    font-family: 'Consolas', 'Courier New', monospace;
 }
 
 #mouseIcon {
@@ -296,16 +344,18 @@ QPushButton#circleControlButtonStop:disabled {
 
 DARK_THEME = """
 QMainWindow {
-    background-color: #1F1F1F;
+    background-color: transparent;
 }
 
 QWidget {
     font-family: 'Segoe UI', Arial, sans-serif;
     font-size: 10pt;
+    background-color: transparent;
 }
 
 QLabel {
     color: #FFFFFF;
+    background-color: transparent;
 }
 
 QLabel#title {
@@ -486,11 +536,35 @@ QGroupBox::title {
     color: #60CDFF;
 }
 
-/* Circular Design Elements - Dark */
-#circleContainer {
-    background-color: transparent;
-    border: 8px solid #60CDFF;
-    border-radius: 200px;
+/* Single Circle Design - Dark */
+QPushButton#mainCircle {
+    background-color: rgba(45, 45, 45, 200);
+    border: 6px solid #60CDFF;
+    border-radius: 120px;
+}
+
+QPushButton#mainCircle:hover {
+    background-color: rgba(63, 63, 63, 220);
+    border: 8px solid #1A86D9;
+}
+
+QPushButton#mainCircle:pressed {
+    background-color: rgba(80, 80, 80, 240);
+}
+
+QPushButton#mainCircle[status="running"] {
+    background-color: rgba(45, 74, 43, 200);
+    border: 6px solid #6CCB5F;
+}
+
+QPushButton#mainCircle[status="running"]:hover {
+    background-color: rgba(58, 90, 56, 220);
+    border: 8px solid #5FBF52;
+}
+
+QPushButton#mainCircle[status="paused"] {
+    background-color: rgba(68, 61, 28, 200);
+    border: 6px solid #FFB900;
 }
 
 #mouseIcon {
