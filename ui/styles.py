@@ -204,19 +204,49 @@ QPushButton#mainCircle:pressed {
     background-color: transparent;
 }
 
+/* When running, hide button border - only show progress arc */
 QPushButton#mainCircle[status="running"] {
     background-color: transparent;
-    border: 5px solid #4CAF50;
+    border: none;
 }
 
 QPushButton#mainCircle[status="running"]:hover {
     background-color: transparent;
-    border: 6px solid #45A049;
+    border: none;
+}
+
+/* Warning state (last 3 seconds) - no border, progress arc is red */
+QPushButton#mainCircle[status="warning"] {
+    background-color: transparent;
+    border: none;
+}
+
+QPushButton#mainCircle[status="warning"]:hover {
+    background-color: transparent;
+    border: none;
 }
 
 QPushButton#mainCircle[status="paused"] {
     background-color: transparent;
     border: 5px solid #FFB900;
+}
+
+/* Close button - appears on hover near outer edge */
+QPushButton#closeButton {
+    background-color: rgba(220, 53, 69, 0.9);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 12pt;
+    font-weight: bold;
+}
+
+QPushButton#closeButton:hover {
+    background-color: rgba(200, 35, 51, 1.0);
+}
+
+QPushButton#closeButton:pressed {
+    background-color: rgba(150, 20, 30, 1.0);
 }
 
 #circleStatus {
@@ -552,14 +582,26 @@ QPushButton#mainCircle:pressed {
     background-color: transparent;
 }
 
+/* When running, hide button border - only show progress arc */
 QPushButton#mainCircle[status="running"] {
     background-color: transparent;
-    border: 5px solid #6CCB5F;
+    border: none;
 }
 
 QPushButton#mainCircle[status="running"]:hover {
     background-color: transparent;
-    border: 6px solid #5FBF52;
+    border: none;
+}
+
+/* Warning state (last 3 seconds) - no border, progress arc is red */
+QPushButton#mainCircle[status="warning"] {
+    background-color: transparent;
+    border: none;
+}
+
+QPushButton#mainCircle[status="warning"]:hover {
+    background-color: transparent;
+    border: none;
 }
 
 QPushButton#mainCircle[status="paused"] {

@@ -150,14 +150,17 @@ class MainWindow(QMainWindow):
         # Setup UI - Frameless and transparent
         self.setWindowTitle("Mouse Pilot")
         
-        # Make window frameless but SHOW in taskbar
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        # Make window frameless - remove WindowStaysOnTopHint to allow taskbar minimize
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowMinimizeButtonHint)
         
         # Make window background transparent
         self.setAttribute(Qt.WA_TranslucentBackground)
         
         # Enable mouse tracking for cursor changes
         self.setMouseTracking(True)
+        
+        # Track if window should stay on top (user preference)
+        self.stay_on_top = False
         
         icon_path = get_resource_path(os.path.join("assets", "icon.ico"))
         if os.path.exists(icon_path):
@@ -194,6 +197,16 @@ class MainWindow(QMainWindow):
         
         # Create the single clickable circle
         self.create_clickable_circle(main_layout)
+        
+        # Create close button (hidden by default, shows on hover near edge)
+        self.close_button = QPushButton("✕")
+        self.close_button.setObjectName("closeButton")
+        self.close_button.setFixedSize(24, 24)
+        self.close_button.setParent(self)
+        self.close_button.move(self.width() - 30, 6)  # Top-right corner
+        self.close_button.clicked.connect(self.exit_application)
+        self.close_button.setCursor(Qt.PointingHandCursor)
+        self.close_button.hide()  # Hidden by default
         
         # Hidden controls for internal state
         self.interval_combo = QComboBox()
@@ -491,28 +504,32 @@ class MainWindow(QMainWindow):
                 interval = self.get_selected_interval()
                 remaining = (next_time - datetime.now()).total_seconds()
                 
-                # Calculate progress (0 to 1, where 1 is complete)
-                progress = 1.0 - (remaining / interval)
+                # Calculate progress as remaining time (1 = full, 0 = empty)
+                # Circle starts FULL and drains to empty
+                progress = remaining / interval
                 progress = max(0.0, min(1.0, progress))  # Clamp to 0-1
                 
                 self.progress_widget.set_progress(progress)
-                self.progress_widget.update()
                 
-                # Last 3 seconds: RED warning
-                if remaining <= 3 and remaining > 0:
-                    self.circle_button.setProperty("status", "warning")
+                # Change to RED when 75% complete (25% remaining)
+                if progress <= 0.25:
                     self.progress_widget.set_color("red")
                 else:
-                    self.circle_button.setProperty("status", "running")
                     self.progress_widget.set_color("green")
                 
+                self.progress_widget.update()
+                
+                self.circle_button.setProperty("status", "running")
                 # Force style refresh
                 self.circle_button.setStyle(self.circle_button.style())
         else:
-            # Reset progress when stopped
-            self.progress_widget.set_progress(0)
+            # Show full blue circle when stopped/idle
+            self.progress_widget.set_progress(1.0)  # Full circle
             self.progress_widget.set_color("blue")
             self.progress_widget.update()
+            
+            self.circle_button.setProperty("status", "stopped")
+            self.circle_button.setStyle(self.circle_button.style())
     
     def update_tray_tooltip(self):
         """Update system tray tooltip"""
@@ -530,7 +547,7 @@ class MainWindow(QMainWindow):
     
     def show_window(self):
         """Show and activate the main window"""
-        self.show()
+        self.showNormal()  # Restore from minimized state
         self.activateWindow()
         self.raise_()
     
@@ -538,6 +555,19 @@ class MainWindow(QMainWindow):
         """Handle tray icon activation"""
         if reason == QSystemTrayIcon.DoubleClick:
             self.show_window()
+    
+    def changeEvent(self, event):
+        """Handle window state changes (minimize/restore)"""
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.WindowStateChange:
+            # Window state changed (minimized, maximized, etc.)
+            pass
+        super().changeEvent(event)
+    
+    def leaveEvent(self, event):
+        """Hide close button when mouse leaves the window"""
+        self.close_button.hide()
+        super().leaveEvent(event)
     
     def closeEvent(self, event: QCloseEvent):
         """Handle window close event"""
@@ -549,6 +579,19 @@ class MainWindow(QMainWindow):
             self.hide()
         else:
             self.exit_application()
+    
+    def is_near_outer_edge(self, pos):
+        """Check if position is near the outer edge (for showing close button)"""
+        # Get window center
+        center_x = self.width() / 2
+        center_y = self.height() / 2
+        
+        dx = pos.x() - center_x
+        dy = pos.y() - center_y
+        distance = (dx * dx + dy * dy) ** 0.5
+        
+        # Near outer edge = between 70 and 110 pixels from center
+        return distance >= 70 and distance <= 110
     
     def is_on_center_button(self, pos):
         """Check if position is on the center button circle"""
@@ -596,6 +639,12 @@ class MainWindow(QMainWindow):
                 self.setCursor(QCursor(Qt.OpenHandCursor))
             else:
                 self.setCursor(QCursor(Qt.PointingHandCursor))
+        
+        # Show/hide close button based on proximity to outer edge
+        if self.is_near_outer_edge(local_pos):
+            self.close_button.show()
+        else:
+            self.close_button.hide()
         
         event.accept()
     
@@ -658,7 +707,7 @@ class ProgressCircle(QWidget):
             self.color = QColor(244, 67, 54)  # Red
     
     def paintEvent(self, event):
-        """Draw the circular progress arc"""
+        """Draw the circular progress arc - countdown style (full to empty, clockwise)"""
         if self.progress <= 0:
             return
         
@@ -675,10 +724,11 @@ class ProgressCircle(QWidget):
         margin = 8
         rect = QRectF(margin, margin, self.width() - 2*margin, self.height() - 2*margin)
         
-        # Draw arc clockwise from top (starts at 90 degrees, goes clockwise)
+        # Draw arc CLOCKWISE - starts at top and drains clockwise
         # Qt angles: 0° is 3 o'clock, 90° is 12 o'clock
-        # Positive span = counter-clockwise, Negative span = clockwise
+        # Positive span = counter-clockwise
+        # We want clockwise drain, so we draw counter-clockwise from top
         start_angle = 90 * 16  # Start at top (12 o'clock)
-        span_angle = -int(self.progress * 360 * 16)  # Negative for clockwise
+        span_angle = int(self.progress * 360 * 16)  # Positive for counter-clockwise drawing = appears as clockwise drain
         
         painter.drawArc(rect, start_angle, span_angle)
