@@ -231,22 +231,25 @@ QPushButton#mainCircle[status="paused"] {
     border: 5px solid #FFB900;
 }
 
-/* Close button - appears on hover near outer edge */
+/* Close button - red circle with cross inside */
 QPushButton#closeButton {
-    background-color: rgba(220, 53, 69, 0.9);
+    background-color: #DC3545;
     color: white;
-    border: none;
+    border: 2px solid #DC3545;
     border-radius: 12px;
-    font-size: 12pt;
+    font-size: 14pt;
     font-weight: bold;
+    padding: 0px;
 }
 
 QPushButton#closeButton:hover {
-    background-color: rgba(200, 35, 51, 1.0);
+    background-color: #C82333;
+    border: 2px solid #C82333;
 }
 
 QPushButton#closeButton:pressed {
-    background-color: rgba(150, 20, 30, 1.0);
+    background-color: #A71D2A;
+    border: 2px solid #A71D2A;
 }
 
 #circleStatus {

@@ -15,8 +15,8 @@ Write-Host "Activating virtual environment..." -ForegroundColor Green
 & ".\venv\Scripts\Activate.ps1"
 
 # Check if icon exists
-if (!(Test-Path "assets\icon.ico")) {
-    Write-Host "Warning: assets\icon.ico not found. Building without custom icon." -ForegroundColor Yellow
+if (!(Test-Path "assets\mouse_pilot.ico")) {
+    Write-Host "Warning: assets\mouse_pilot.ico not found. Building without custom icon." -ForegroundColor Yellow
 }
 
 # Clean previous build
@@ -29,8 +29,8 @@ if (Test-Path "MousePilot.spec") { Remove-Item -Force "MousePilot.spec" }
 Write-Host "Building executable with PyInstaller..." -ForegroundColor Green
 
 $iconArg = ""
-if (Test-Path "assets\icon.ico") {
-    $iconArg = "--icon=assets\icon.ico"
+if (Test-Path "assets\mouse_pilot.ico") {
+    $iconArg = "--icon=assets\mouse_pilot.ico"
 }
 
 pyinstaller --name=MousePilot `

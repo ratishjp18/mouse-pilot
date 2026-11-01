@@ -31,6 +31,12 @@ def get_resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
+# Icon file names
+APP_ICON = "mouse_pilot.ico"  # Main app icon
+WIDGET_ICON = "widget_icon.png"  # Icon shown in center of circle
+TRAY_ICON = "tray_icon.png"  # System tray icon
+
+
 class SettingsDialog(QDialog):
     """Settings dialog window"""
     
@@ -162,7 +168,7 @@ class MainWindow(QMainWindow):
         # Track if window should stay on top (user preference)
         self.stay_on_top = False
         
-        icon_path = get_resource_path(os.path.join("assets", "icon.ico"))
+        icon_path = get_resource_path(os.path.join("assets", APP_ICON))
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         
@@ -198,7 +204,7 @@ class MainWindow(QMainWindow):
         # Create the single clickable circle
         self.create_clickable_circle(main_layout)
         
-        # Create close button (hidden by default, shows on hover near edge)
+        # Create close button (hidden by default, shows on hover anywhere on app)
         self.close_button = QPushButton("✕")
         self.close_button.setObjectName("closeButton")
         self.close_button.setFixedSize(24, 24)
@@ -207,6 +213,14 @@ class MainWindow(QMainWindow):
         self.close_button.clicked.connect(self.exit_application)
         self.close_button.setCursor(Qt.PointingHandCursor)
         self.close_button.hide()  # Hidden by default
+        
+        # Timer to auto-hide close button after 5 seconds
+        self.close_button_timer = QTimer()
+        self.close_button_timer.setSingleShot(True)
+        self.close_button_timer.timeout.connect(self.hide_close_button)
+        
+        # Track if click is inside the circle (for start/stop)
+        self.circle_radius = 90  # Radius of the clickable circle area
         
         # Hidden controls for internal state
         self.interval_combo = QComboBox()
@@ -258,15 +272,22 @@ class MainWindow(QMainWindow):
         self.mouse_icon_label.setAlignment(Qt.AlignCenter)
         self.mouse_icon_label.setAttribute(Qt.WA_TransparentForMouseEvents)  # Let window handle mouse events
         
-        # Load the icon file
-        icon_path = get_resource_path(os.path.join("assets", "icon.ico"))
-        if os.path.exists(icon_path):
-            pixmap = QIcon(icon_path).pixmap(90, 90)  # 90x90 pixel icon (smaller)
+        # Load the widget icon (center of circle)
+        widget_icon_path = get_resource_path(os.path.join("assets", WIDGET_ICON))
+        if os.path.exists(widget_icon_path):
+            from PySide6.QtGui import QPixmap
+            pixmap = QPixmap(widget_icon_path).scaled(90, 90, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.mouse_icon_label.setPixmap(pixmap)
         else:
-            # Fallback to emoji if icon not found
-            self.mouse_icon_label.setText("🖱️")
-            self.mouse_icon_label.setStyleSheet("font-size: 90pt; background: transparent; color: #0078D4;")
+            # Fallback to app icon if widget icon not found
+            icon_path = get_resource_path(os.path.join("assets", APP_ICON))
+            if os.path.exists(icon_path):
+                pixmap = QIcon(icon_path).pixmap(90, 90)
+                self.mouse_icon_label.setPixmap(pixmap)
+            else:
+                # Fallback to emoji if no icon found
+                self.mouse_icon_label.setText("🖱️")
+                self.mouse_icon_label.setStyleSheet("font-size: 90pt; background: transparent; color: #0078D4;")
         
         self.mouse_icon_label.setStyleSheet("background: transparent;")
         button_layout.addWidget(self.mouse_icon_label)
@@ -351,11 +372,17 @@ class MainWindow(QMainWindow):
     
     def setup_tray(self):
         """Setup system tray icon"""
-        icon_path = get_resource_path(os.path.join("assets", "icon.ico"))
-        if os.path.exists(icon_path):
-            tray_icon = QIcon(icon_path)
+        # Use dedicated tray icon
+        tray_icon_path = get_resource_path(os.path.join("assets", TRAY_ICON))
+        if os.path.exists(tray_icon_path):
+            tray_icon = QIcon(tray_icon_path)
         else:
-            tray_icon = self.style().standardIcon(self.style().SP_ComputerIcon)
+            # Fallback to app icon
+            icon_path = get_resource_path(os.path.join("assets", APP_ICON))
+            if os.path.exists(icon_path):
+                tray_icon = QIcon(icon_path)
+            else:
+                tray_icon = self.style().standardIcon(self.style().SP_ComputerIcon)
         
         self.tray_icon = QSystemTrayIcon(tray_icon, self)
         self.tray_icon.setToolTip("Mouse Pilot - Stopped")
@@ -565,9 +592,14 @@ class MainWindow(QMainWindow):
         super().changeEvent(event)
     
     def leaveEvent(self, event):
-        """Hide close button when mouse leaves the window"""
-        self.close_button.hide()
+        """When mouse leaves, let the timer handle hiding the close button"""
+        # Don't hide immediately - let the 5-second timer handle it
         super().leaveEvent(event)
+    
+    def enterEvent(self, event):
+        """Show close button when mouse enters the window"""
+        self.show_close_button()
+        super().enterEvent(event)
     
     def closeEvent(self, event: QCloseEvent):
         """Handle window close event"""
@@ -593,8 +625,17 @@ class MainWindow(QMainWindow):
         # Near outer edge = between 70 and 110 pixels from center
         return distance >= 70 and distance <= 110
     
+    def show_close_button(self):
+        """Show close button and start 3-second timer to hide it"""
+        self.close_button.show()
+        self.close_button_timer.start(3000)  # Hide after 3 seconds
+    
+    def hide_close_button(self):
+        """Hide the close button"""
+        self.close_button.hide()
+    
     def is_on_center_button(self, pos):
-        """Check if position is on the center button circle"""
+        """Check if position is inside/on the inner red circle (for start/stop toggle)"""
         # Get window center
         center_x = self.width() / 2
         center_y = self.height() / 2
@@ -603,7 +644,9 @@ class MainWindow(QMainWindow):
         dy = pos.y() - center_y
         distance = (dx * dx + dy * dy) ** 0.5
         
-        return distance <= 50  # Smaller radius = larger draggable area (was 90)
+        # Inner red circle area = within 60px radius 
+        # This covers the red circle shown in the widget icon (which is 90x90 = 45px radius + border)
+        return distance <= 60
     
     def mousePressEvent(self, event):
         """Handle mouse press - drag from anywhere except center button"""
@@ -640,11 +683,8 @@ class MainWindow(QMainWindow):
             else:
                 self.setCursor(QCursor(Qt.PointingHandCursor))
         
-        # Show/hide close button based on proximity to outer edge
-        if self.is_near_outer_edge(local_pos):
-            self.close_button.show()
-        else:
-            self.close_button.hide()
+        # Show close button when mouse is anywhere on the app
+        self.show_close_button()
         
         event.accept()
     
@@ -714,21 +754,20 @@ class ProgressCircle(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         
-        # Set up pen for the arc
+        # Set up pen for the arc - thick line to match the idle circle border
         pen = QPen(self.color)
-        pen.setWidth(6)
+        pen.setWidth(5)  # Match the 5px border width of idle circle
         pen.setCapStyle(Qt.RoundCap)
         painter.setPen(pen)
         
-        # Calculate rectangle for arc (inset from edges)
-        margin = 8
+        # Calculate rectangle for arc - draw at the outer edge to match blue border
+        # The blue border is at the edge of the 180x180 button
+        # We need margin of half the pen width (2.5) to align the arc center with the border
+        margin = 2.5
         rect = QRectF(margin, margin, self.width() - 2*margin, self.height() - 2*margin)
         
         # Draw arc CLOCKWISE - starts at top and drains clockwise
-        # Qt angles: 0° is 3 o'clock, 90° is 12 o'clock
-        # Positive span = counter-clockwise
-        # We want clockwise drain, so we draw counter-clockwise from top
         start_angle = 90 * 16  # Start at top (12 o'clock)
-        span_angle = int(self.progress * 360 * 16)  # Positive for counter-clockwise drawing = appears as clockwise drain
+        span_angle = int(self.progress * 360 * 16)
         
         painter.drawArc(rect, start_angle, span_angle)
