@@ -481,6 +481,9 @@ class MainWindow(QMainWindow):
             interval = self.get_selected_interval()
             self.scheduler.start(interval)
         
+        # Enable keep-awake to prevent system sleep/lock
+        self.keep_awake_manager.enable()
+        
         self.update_buttons()
         self.save_settings()
         self.update_tray_tooltip()
@@ -497,6 +500,10 @@ class MainWindow(QMainWindow):
         self.status = "stopped"
         self.start_time = None
         self.scheduler.stop()
+        
+        # Disable keep-awake when stopped
+        self.keep_awake_manager.disable()
+        
         self.update_buttons()
         self.save_settings()
         self.update_tray_tooltip()
