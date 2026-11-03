@@ -204,6 +204,16 @@ class MainWindow(QMainWindow):
         # Create the single clickable circle
         self.create_clickable_circle(main_layout)
         
+        # Create minimize button (hidden by default, shows on hover anywhere on app)
+        self.minimize_button = QPushButton("─")
+        self.minimize_button.setObjectName("minimizeButton")
+        self.minimize_button.setFixedSize(24, 24)
+        self.minimize_button.setParent(self)
+        self.minimize_button.move(self.width() - 58, 6)  # Top-right corner, left of close button
+        self.minimize_button.clicked.connect(self.showMinimized)
+        self.minimize_button.setCursor(Qt.PointingHandCursor)
+        self.minimize_button.hide()  # Hidden by default
+        
         # Create close button (hidden by default, shows on hover anywhere on app)
         self.close_button = QPushButton("✕")
         self.close_button.setObjectName("closeButton")
@@ -214,10 +224,10 @@ class MainWindow(QMainWindow):
         self.close_button.setCursor(Qt.PointingHandCursor)
         self.close_button.hide()  # Hidden by default
         
-        # Timer to auto-hide close button after 5 seconds
+        # Timer to auto-hide buttons after 3 seconds
         self.close_button_timer = QTimer()
         self.close_button_timer.setSingleShot(True)
-        self.close_button_timer.timeout.connect(self.hide_close_button)
+        self.close_button_timer.timeout.connect(self.hide_control_buttons)
         
         # Track if click is inside the circle (for start/stop)
         self.circle_radius = 90  # Radius of the clickable circle area
@@ -633,12 +643,14 @@ class MainWindow(QMainWindow):
         return distance >= 70 and distance <= 110
     
     def show_close_button(self):
-        """Show close button and start 3-second timer to hide it"""
+        """Show control buttons and start 3-second timer to hide them"""
+        self.minimize_button.show()
         self.close_button.show()
         self.close_button_timer.start(3000)  # Hide after 3 seconds
     
-    def hide_close_button(self):
-        """Hide the close button"""
+    def hide_control_buttons(self):
+        """Hide the control buttons"""
+        self.minimize_button.hide()
         self.close_button.hide()
     
     def is_on_center_button(self, pos):
