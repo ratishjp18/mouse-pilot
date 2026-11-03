@@ -252,6 +252,27 @@ QPushButton#closeButton:pressed {
     border: 2px solid #A71D2A;
 }
 
+/* Minimize button - yellow/orange circle with minus inside */
+QPushButton#minimizeButton {
+    background-color: #FFC107;
+    color: #333;
+    border: 2px solid #FFC107;
+    border-radius: 12px;
+    font-size: 14pt;
+    font-weight: bold;
+    padding: 0px;
+}
+
+QPushButton#minimizeButton:hover {
+    background-color: #E0A800;
+    border: 2px solid #E0A800;
+}
+
+QPushButton#minimizeButton:pressed {
+    background-color: #C69500;
+    border: 2px solid #C69500;
+}
+
 #circleStatus {
     font-size: 10pt;
     font-weight: 600;
