@@ -2,6 +2,7 @@
 Main Window UI for Mouse Pilot
 """
 
+import math
 import os
 import sys
 from datetime import datetime, timedelta
@@ -35,6 +36,7 @@ def get_resource_path(relative_path):
 APP_ICON = "mouse_pilot.ico"  # Main app icon
 WIDGET_ICON = "widget_icon.png"  # Icon shown in center of circle
 TRAY_ICON = "tray_icon.png"  # System tray icon
+WIDGET_ICON_NODOT = "widget_icon_nodot.png"  # Widget icon without the orbiting dot (dot is animated)
 
 
 class SettingsDialog(QDialog):
@@ -283,12 +285,14 @@ class MainWindow(QMainWindow):
         self.mouse_icon_label.setAttribute(Qt.WA_TransparentForMouseEvents)  # Let window handle mouse events
         
         # Load the widget icon (center of circle)
-        widget_icon_path = get_resource_path(os.path.join("assets", WIDGET_ICON))
+        widget_icon_path = get_resource_path(os.path.join("assets", WIDGET_ICON_NODOT))
+        self.orbit_icon = OrbitIcon(widget_icon_path, 90)
+        self.orbit_icon.setAttribute(Qt.WA_TransparentForMouseEvents)
         if os.path.exists(widget_icon_path):
-            from PySide6.QtGui import QPixmap
-            pixmap = QPixmap(widget_icon_path).scaled(90, 90, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.mouse_icon_label.setPixmap(pixmap)
+            self.mouse_icon_label.hide()
+            button_layout.addWidget(self.orbit_icon, alignment=Qt.AlignCenter)
         else:
+            self.orbit_icon.hide()
             # Fallback to app icon if widget icon not found
             icon_path = get_resource_path(os.path.join("assets", APP_ICON))
             if os.path.exists(icon_path):
@@ -554,7 +558,8 @@ class MainWindow(QMainWindow):
                 progress = max(0.0, min(1.0, progress))  # Clamp to 0-1
                 
                 self.progress_widget.set_progress(progress)
-                
+                self.orbit_icon.set_running(True)
+
                 # Change to RED when 75% complete (25% remaining)
                 if progress <= 0.25:
                     self.progress_widget.set_color("red")
@@ -568,7 +573,8 @@ class MainWindow(QMainWindow):
                 self.circle_button.setStyle(self.circle_button.style())
         else:
             # Show full blue circle when stopped/idle
-            self.progress_widget.set_progress(1.0)  # Full circle
+            self.progress_widget.set_progress(1.0)  # Full blue circle when idle
+            self.orbit_icon.set_running(False)
             self.progress_widget.set_color("blue")
             self.progress_widget.update()
             
@@ -741,6 +747,62 @@ class MainWindow(QMainWindow):
         # Quit application
         from PySide6.QtWidgets import QApplication
         QApplication.quit()
+
+
+class OrbitIcon(QWidget):
+    """Widget icon with a small dot that travels around the orbit ellipse while running"""
+
+    # Orbit ellipse in the 128x128 source image (centre, semi-axes, tilt in radians)
+    _CX, _CY, _A, _B, _ANG = 63.40, 63.56, 42.77, 19.18, -0.523
+    _DOT_COLOR = QColor(255, 255, 255)
+
+    def __init__(self, image_path, size, parent=None):
+        super().__init__(parent)
+        from PySide6.QtGui import QPixmap
+        self._size = size
+        self._pixmap = QPixmap(image_path).scaled(
+            size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self._t = 0.0  # position along the orbit, radians
+        self._running = False
+        self.setFixedSize(size, size)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+
+    def set_running(self, running):
+        if running == self._running:
+            return
+        self._running = running
+        self._timer.start(33)  # ~30 FPS; when stopping, keeps going until the dot is home
+
+    def _tick(self):
+        step = 0.08  # ~2.4 rad/s, one lap in ~2.6s
+        if self._running:
+            self._t = (self._t + step) % (2 * math.pi)
+        else:
+            # Glide forward along the orbit back to the home spot (t = 0)
+            remaining = (2 * math.pi - self._t) % (2 * math.pi)
+            if self._t == 0.0 or remaining <= step:
+                self._t = 0.0
+                self._timer.stop()
+            else:
+                self._t += step
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.drawPixmap(0, 0, self._pixmap)
+
+        k = self._size / 128.0
+        u, v = self._A * math.cos(self._t), self._B * math.sin(self._t)
+        c, s = math.cos(self._ANG), math.sin(self._ANG)
+        x = (self._CX + u * c - v * s) * k
+        y = (self._CY + u * s + v * c) * k
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(self._DOT_COLOR)
+        r = 5.5 * k
+        painter.drawEllipse(QRectF(x - r, y - r, 2 * r, 2 * r))
 
 
 class ProgressCircle(QWidget):
